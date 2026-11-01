@@ -1,0 +1,308 @@
+{
+  "name": "Receipt and Invoice Reader",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Receipt and Invoice Reader\n\n**Before you run it:**\n1. Create a Google Sheet called Expense Log. Row 1 headings: Logged At, Receipt Date, Vendor, Total, Currency, Category, Submitted By.\n2. Open each node showing a red warning and choose your credential (OpenAI, Google Sheets).\n3. In both Google Sheets fields, choose your Expense Log document and Sheet1.\n4. In Read Receipt, make sure the Input Data Field Name matches the file field from the form. Check the Binary tab of the Receipt Form output to see the name.\n\nTest: click Execute workflow on Receipt Form, open the form link, and upload a receipt photo (JPG or PNG). Do not upload receipts that contain private information.",
+        "height": 420,
+        "width": 480
+      },
+      "id": "n0",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -260,
+        -240
+      ]
+    },
+    {
+      "parameters": {
+        "formTitle": "Upload a receipt",
+        "formDescription": "Upload a clear photo of a receipt or invoice (JPG or PNG).",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Receipt",
+              "fieldType": "file",
+              "acceptFileTypes": ".jpg,.jpeg,.png",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Submitted by",
+              "placeholder": "Your name",
+              "requiredField": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n1",
+      "name": "Receipt Form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        300,
+        200
+      ],
+      "webhookId": "7c0d1e52-4a3b-4f6e-9a21-5d8e3b7f1c40"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "text": "Read this receipt or invoice carefully. Write out all the text you can see, exactly as printed. Include the shop or company name, the date, each item and its price, any tax, and the total. Do not guess or add anything that is not on the page. If something is unreadable, write UNREADABLE.",
+        "inputType": "base64",
+        "binaryPropertyName": "Receipt",
+        "options": {}
+      },
+      "id": "n2",
+      "name": "Read Receipt",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        540,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.content ?? $json.text ?? $json.output?.[0]?.content?.[0]?.text ?? '' }}",
+        "schemaType": "fromAttributes",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "vendor",
+              "type": "string",
+              "description": "The name of the shop or company that issued the receipt or invoice.",
+              "required": true
+            },
+            {
+              "name": "date",
+              "type": "string",
+              "description": "The date on the document in the format YYYY-MM-DD. If there is no date, write unknown.",
+              "required": true
+            },
+            {
+              "name": "total",
+              "type": "number",
+              "description": "The final total amount paid or due, as a number only, with no currency symbol and no commas.",
+              "required": true
+            },
+            {
+              "name": "currency",
+              "type": "string",
+              "description": "The currency, such as NGN, USD or GBP. If a naira sign or the letter N is used with prices in Nigeria, write NGN. If unclear, write unknown.",
+              "required": true
+            },
+            {
+              "name": "category",
+              "type": "string",
+              "description": "Choose exactly one: Food, Transport, Office, Utilities, Other.",
+              "required": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n3",
+      "name": "Pick Out Fields",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "id": "n4",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        800,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "PASTE_YOUR_GOOGLE_SHEET_ID_HERE",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Logged At": "={{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
+            "Receipt Date": "={{ $json.output.date }}",
+            "Vendor": "={{ $json.output.vendor }}",
+            "Total": "={{ $json.output.total }}",
+            "Currency": "={{ $json.output.currency }}",
+            "Category": "={{ $json.output.category }}",
+            "Submitted By": "={{ $('Receipt Form').item.json['Submitted by'] }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Logged At",
+              "displayName": "Logged At",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Receipt Date",
+              "displayName": "Receipt Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Vendor",
+              "displayName": "Vendor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Total",
+              "displayName": "Total",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Currency",
+              "displayName": "Currency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Category",
+              "displayName": "Category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Submitted By",
+              "displayName": "Submitted By",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "n5",
+      "name": "Save to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Receipt Form": {
+      "main": [
+        [
+          {
+            "node": "Read Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Receipt": {
+      "main": [
+        [
+          {
+            "node": "Pick Out Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Out Fields": {
+      "main": [
+        [
+          {
+            "node": "Save to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Pick Out Fields",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
